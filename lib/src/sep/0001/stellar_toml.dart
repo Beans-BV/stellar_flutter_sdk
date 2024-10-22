@@ -152,6 +152,7 @@ class StellarToml {
     generalInformation.webAuthEndpoint = document['WEB_AUTH_ENDPOINT'];
     generalInformation.signingKey = document['SIGNING_KEY'];
     generalInformation.horizonUrl = document['HORIZON_URL'];
+    generalInformation.hotswapServer = document['HOTSWAP_SERVER'];
 
     if (document['ACCOUNTS'] != null) {
       document['ACCOUNTS'].forEach((var item) {
@@ -363,7 +364,8 @@ class StellarToml {
   /// );
   /// ```
   static Future<StellarToml> fromDomain(String domain,
-      {http.Client? httpClient, Map<String, String>? httpRequestHeaders}) async {
+      {http.Client? httpClient,
+      Map<String, String>? httpRequestHeaders}) async {
     Uri uri = Uri.parse("https://" + domain + "/.well-known/stellar.toml");
     http.Client client = httpClient == null ? http.Client() : httpClient;
     return await client.get(uri, headers: httpRequestHeaders).then((response) {
@@ -417,7 +419,8 @@ class StellarToml {
   /// }
   /// ```
   static Future<Currency> currencyFromUrl(String toml,
-      {http.Client? httpClient, Map<String, String>? httpRequestHeaders}) async {
+      {http.Client? httpClient,
+      Map<String, String>? httpRequestHeaders}) async {
     Uri uri = Uri.parse(toml);
 
     http.Client client = httpClient == null ? http.Client() : httpClient;
@@ -534,6 +537,9 @@ class GeneralInformation {
 
   /// Location of public-facing Horizon instance (if one is offered).
   String? horizonUrl;
+
+  /// The server used for SEP-99 Hotswap Protocol.
+  String? hotswapServer;
 
   /// A list of Stellar accounts that are controlled by this domain.
   List<String> accounts = [];
