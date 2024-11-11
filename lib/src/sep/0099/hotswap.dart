@@ -13,16 +13,13 @@ class Hotswap {
   late final String _serverAddress;
   final http.Client _httpClient;
   final StellarSDK _sdk;
-  final Network _network;
   final bool _isClientInternal;
 
   Hotswap(
     String serverAddress, {
     required StellarSDK sdk,
-    required Network network,
     http.Client? httpClient,
   })  : _sdk = sdk,
-        _network = network,
         _isClientInternal = httpClient == null,
         _httpClient = httpClient ?? http.Client() {
     this._serverAddress = "https://dev.api.mykobo.co/boomerang";
@@ -31,7 +28,6 @@ class Hotswap {
   static Future<Hotswap> fromDomain(
     String domain, {
     required StellarSDK sdk,
-    required Network network,
     http.Client? httpClient,
   }) async {
     // StellarToml toml = await StellarToml.fromDomain(
@@ -49,7 +45,6 @@ class Hotswap {
       "https://dev.api.mykobo.co/boomerang",
       httpClient: httpClient,
       sdk: sdk,
-      network: network,
     );
   }
 
@@ -63,9 +58,8 @@ class Hotswap {
     return result;
   }
 
-  Future<Transaction> getSignedTransaction({
+  Future<Transaction> getAnchorSignedTransaction({
     required String accountId,
-    required KeyPair signer,
     required HotswapRoute hotswapRoute,
     String toAssetTrustLineLimit = ChangeTrustOperationBuilder.MAX_LIMIT,
   }) async {
@@ -113,8 +107,6 @@ class Hotswap {
 
     final transaction = txBuilder.build();
 
-    transaction.sign(signer, _network);
-
     var transactionXdr = transaction.toEnvelopeXdrBase64();
     var hotswapUrl = Util.appendEndpointToUrl(
       _serverAddress,
@@ -129,7 +121,7 @@ class Hotswap {
 
     if (response.statusCode != 200) {
       throw Exception(
-        'Failed to get signed transaction: ${response.statusCode}',
+        'Failed to get anchor signed transaction: ${response.statusCode}',
       );
     }
 
@@ -142,6 +134,12 @@ class Hotswap {
         transactionXdr,
       ).v1!,
     );
+
+    if (!_checkIntegrity(transaction, signedTransaction)) {
+      throw Exception(
+        'The anchor signed transaction is corrupted: ${response.statusCode}',
+      );
+    }
     return signedTransaction;
   }
 
@@ -150,6 +148,28 @@ class Hotswap {
     if (_isClientInternal) {
       _httpClient.close();
     }
+  }
+
+  bool _checkIntegrity(
+    Transaction originalTransaction,
+    Transaction signedTransaction,
+  ) {
+    final originalOperations = originalTransaction.operations;
+    final signedOperations = signedTransaction.operations;
+
+    if (originalOperations.length != signedOperations.length) {
+      return false;
+    }
+
+    for (int i = 0; i < originalOperations.length; i++) {
+      final originalOperationXdrBase64 = originalOperations[i].toXdrBase64();
+      final signedOperationXdrBase64 = signedOperations[i].toXdrBase64();
+      if (originalOperationXdrBase64 != signedOperationXdrBase64) {
+        return false;
+      }
+    }
+
+    return true;
   }
 }
 
