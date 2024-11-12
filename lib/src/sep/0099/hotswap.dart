@@ -29,30 +29,20 @@ class Hotswap {
     required StellarSDK sdk,
     http.Client? httpClient,
   }) async {
-    // StellarToml toml = await StellarToml.fromDomain(
-    //   domain,
-    //   httpClient: httpClient,
-    //   httpRequestHeaders: httpRequestHeaders,
-    // );
-    // String? hotswapServer = toml.generalInformation.hotswapServer;
-    // checkNotNull(
-    //   hotswapServer,
-    //   "hotswap server not found in stellar toml of domain " + domain,
-    // );
+    StellarToml toml = await StellarToml.fromDomain(
+      domain,
+      httpClient: httpClient,
+    );
+    String? hotswapServer = toml.generalInformation.hotswapServer;
+    checkNotNull(
+      hotswapServer,
+      "hotswap server not found in stellar toml of domain " + domain,
+    );
     return Hotswap._(
-      _getServerAddress(domain),
+      hotswapServer!,
       httpClient: httpClient,
       sdk: sdk,
     );
-  }
-
-  static String _getServerAddress(String domain) {
-    if (domain == 'mykobo.co') {
-      return "https://api.mykobo.co/boomerang";
-    } else if (domain == 'dev.anchor.mykobo.co') {
-      return "https://dev.api.mykobo.co/boomerang";
-    }
-    return domain;
   }
 
   Future<List<HotswapRoute>> info() async {
@@ -74,12 +64,12 @@ class Hotswap {
     var account = await _sdk.accounts.account(accountId);
 
     final hotswapHandlerAccountId = hotswapRoute.hotswapAddress;
-    final fromAsset = hotswapRoute.fromAsset.toAsset();
+    final fromAsset = hotswapRoute.youSendAsset.toAsset();
     final fromAssetBalanceObject = account.balances.firstWhere(
       (e) =>
           e.assetCode == fromAsset.code && e.assetIssuer == fromAsset.issuerId,
     );
-    final toAsset = hotswapRoute.toAsset.toAsset();
+    final toAsset = hotswapRoute.weSendAsset.toAsset();
     final sponsored = sponsoringAccountId != null;
 
     final txBuilder = TransactionBuilder(account);
@@ -198,21 +188,20 @@ class Hotswap {
 
 class HotswapRoute {
   final String hotswapAddress;
-  final String fromAsset;
-  final String toAsset;
+  final String youSendAsset;
+  final String weSendAsset;
 
   const HotswapRoute({
     required this.hotswapAddress,
-    required this.fromAsset,
-    required this.toAsset,
+    required this.youSendAsset,
+    required this.weSendAsset,
   });
 
   factory HotswapRoute.fromJson(Map<String, dynamic> json) {
     return HotswapRoute(
-      hotswapAddress:
-          (json['hotswap_address'] ?? json['receivables_address']) as String,
-      fromAsset: (json['from_asset'] ?? json['you_send_asset']) as String,
-      toAsset: (json['to_asset'] ?? json['we_send_asset']) as String,
+      hotswapAddress: json['hotswap_address'] as String,
+      youSendAsset: json['you_send_asset'] as String,
+      weSendAsset: json['we_send_asset'] as String,
     );
   }
 }
@@ -225,24 +214,14 @@ class _HotswapInfoResponse {
   });
 
   factory _HotswapInfoResponse.fromJson(Map<String, dynamic> json) {
-    if (json.containsKey('hotswap_routes')) {
-      return _HotswapInfoResponse(
-        hotswapRoutes: (json['hotswap_routes'] as List)
-            .map(
-              (route) => HotswapRoute.fromJson(
-                route as Map<String, dynamic>,
-              ),
-            )
-            .toList(),
-      );
-    } else {
-      // Single hotswap case (legacy)
-      // TODO: Remove as soon as MYKOBO has updated their implementation
-      return _HotswapInfoResponse(
-        hotswapRoutes: [
-          HotswapRoute.fromJson(json),
-        ],
-      );
-    }
+    return _HotswapInfoResponse(
+      hotswapRoutes: (json['hotswap_routes'] as List)
+          .map(
+            (route) => HotswapRoute.fromJson(
+              route as Map<String, dynamic>,
+            ),
+          )
+          .toList(),
+    );
   }
 }
