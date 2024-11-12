@@ -73,27 +73,38 @@ class Hotswap {
   }) async {
     var account = await _sdk.accounts.account(accountId);
 
-    final txBuilder = TransactionBuilder(account);
-
-    final toAsset = hotswapRoute.toAsset.toAsset();
-    final trustDestinationAssetOperation = ChangeTrustOperationBuilder(
-      toAsset,
-      toAssetTrustLineLimit,
-    ).build();
-
-    final hotswapHandlerAccountId = hotswapRoute.toAddress;
-
+    final hotswapHandlerAccountId = hotswapRoute.hotswapAddress;
     final fromAsset = hotswapRoute.fromAsset.toAsset();
     final fromAssetBalanceObject = account.balances.firstWhere(
       (e) =>
           e.assetCode == fromAsset.code && e.assetIssuer == fromAsset.issuerId,
     );
+    final toAsset = hotswapRoute.toAsset.toAsset();
+    final sponsored = sponsoringAccountId != null;
+
+    final txBuilder = TransactionBuilder(account);
+
+    if (sponsored) {
+      BeginSponsoringFutureReservesOperation beginSponsoringOperation =
+          BeginSponsoringFutureReservesOperationBuilder(accountId)
+              .setSourceAccount(sponsoringAccountId)
+              .build();
+      txBuilder.addOperation(beginSponsoringOperation);
+    }
+
+    final trustDestinationAssetOperation = ChangeTrustOperationBuilder(
+      toAsset,
+      toAssetTrustLineLimit,
+    ).build();
+    txBuilder.addOperation(trustDestinationAssetOperation);
+
     // Send from asset to the hotswap server
     final depositSourceAssetOperation = PaymentOperationBuilder(
       hotswapHandlerAccountId,
       fromAsset,
       fromAssetBalanceObject.balance,
     ).build();
+    txBuilder.addOperation(depositSourceAssetOperation);
 
     // Receive to asset from hotswap server
     final receiveDestinationAssetOperation = PaymentOperationBuilder(
@@ -101,26 +112,14 @@ class Hotswap {
       toAsset,
       fromAssetBalanceObject.balance, // Ensuring a 1:1 exchange
     ).setSourceAccount(hotswapHandlerAccountId).build();
+    txBuilder.addOperation(receiveDestinationAssetOperation);
 
     final untrustSourceAssetOperation = ChangeTrustOperationBuilder(
       fromAsset,
       '0',
     ).build();
+    txBuilder.addOperation(untrustSourceAssetOperation);
 
-    final sponsored = sponsoringAccountId != null;
-
-    if (sponsored) {
-      BeginSponsoringFutureReservesOperation beginSponsoringOperation =
-          BeginSponsoringFutureReservesOperationBuilder(accountId)
-              .setSourceAccount(sponsoringAccountId!)
-              .build();
-      txBuilder.addOperation(beginSponsoringOperation);
-    }
-    txBuilder
-        .addOperation(trustDestinationAssetOperation)
-        .addOperation(depositSourceAssetOperation)
-        .addOperation(receiveDestinationAssetOperation)
-        .addOperation(untrustSourceAssetOperation);
     if (sponsored) {
       EndSponsoringFutureReservesOperation endSponsorshipOperation =
           EndSponsoringFutureReservesOperationBuilder()
@@ -128,6 +127,7 @@ class Hotswap {
               .build();
       txBuilder.addOperation(endSponsorshipOperation);
     }
+
     final transaction = txBuilder.build();
 
     var transactionXdr = transaction.toEnvelopeXdrBase64();
@@ -197,27 +197,22 @@ class Hotswap {
 }
 
 class HotswapRoute extends Response {
-  final String toAddress;
+  final String hotswapAddress;
   final String fromAsset;
   final String toAsset;
-  final double minimumAmount;
 
   HotswapRoute({
-    required this.toAddress,
+    required this.hotswapAddress,
     required this.fromAsset,
     required this.toAsset,
-    required this.minimumAmount,
   });
 
   factory HotswapRoute.fromJson(Map<String, dynamic> json) {
     return HotswapRoute(
-      toAddress:
+      hotswapAddress:
           (json['hotswap_address'] ?? json['receivables_address']) as String,
       fromAsset: (json['from_asset'] ?? json['you_send_asset']) as String,
       toAsset: (json['to_asset'] ?? json['we_send_asset']) as String,
-      minimumAmount: double.parse(
-        (json['min_amount'] ?? json['minimum_amount']) as String,
-      ),
     );
   }
 }
