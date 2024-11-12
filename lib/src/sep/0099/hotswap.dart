@@ -69,22 +69,11 @@ class Hotswap {
     required String accountId,
     required HotswapRoute hotswapRoute,
     String toAssetTrustLineLimit = ChangeTrustOperationBuilder.MAX_LIMIT,
-    bool? sponsored,
     String? sponsoringAccountId,
   }) async {
-    sponsored ??= true;
-    if (sponsored && sponsoringAccountId == null) {
-      throw Exception(
-          'Sponsoring account ID is required for sponsored transaction.');
-    }
     var account = await _sdk.accounts.account(accountId);
 
     final txBuilder = TransactionBuilder(account);
-
-    BeginSponsoringFutureReservesOperation beginSponsoringOperation =
-        BeginSponsoringFutureReservesOperationBuilder(accountId)
-            .setSourceAccount(sponsoringAccountId!)
-            .build();
 
     final toAsset = hotswapRoute.toAsset.toAsset();
     final trustDestinationAssetOperation = ChangeTrustOperationBuilder(
@@ -118,11 +107,13 @@ class Hotswap {
       '0',
     ).build();
 
-    EndSponsoringFutureReservesOperation endSponsorshipOperation =
-        EndSponsoringFutureReservesOperationBuilder()
-            .setSourceAccount(accountId)
-            .build();
+    final sponsored = sponsoringAccountId != null;
+
     if (sponsored) {
+      BeginSponsoringFutureReservesOperation beginSponsoringOperation =
+          BeginSponsoringFutureReservesOperationBuilder(accountId)
+              .setSourceAccount(sponsoringAccountId!)
+              .build();
       txBuilder.addOperation(beginSponsoringOperation);
     }
     txBuilder
@@ -131,6 +122,10 @@ class Hotswap {
         .addOperation(receiveDestinationAssetOperation)
         .addOperation(untrustSourceAssetOperation);
     if (sponsored) {
+      EndSponsoringFutureReservesOperation endSponsorshipOperation =
+          EndSponsoringFutureReservesOperationBuilder()
+              .setSourceAccount(accountId)
+              .build();
       txBuilder.addOperation(endSponsorshipOperation);
     }
     final transaction = txBuilder.build();
