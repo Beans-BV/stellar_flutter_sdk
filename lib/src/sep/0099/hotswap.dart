@@ -10,20 +10,19 @@ import 'package:stellar_flutter_sdk/src/extensions/extensions.dart';
 import 'package:stellar_flutter_sdk/stellar_flutter_sdk.dart';
 
 class Hotswap {
-  late final String _serverAddress;
+  final String _serverAddress;
   final http.Client _httpClient;
   final StellarSDK _sdk;
   final bool _isClientInternal;
 
-  Hotswap(
+  Hotswap._(
     String serverAddress, {
     required StellarSDK sdk,
     http.Client? httpClient,
   })  : _sdk = sdk,
         _isClientInternal = httpClient == null,
-        _httpClient = httpClient ?? http.Client() {
-    this._serverAddress = "https://dev.api.mykobo.co/boomerang";
-  }
+        _httpClient = httpClient ?? http.Client(),
+        _serverAddress = serverAddress;
 
   static Future<Hotswap> fromDomain(
     String domain, {
@@ -40,12 +39,20 @@ class Hotswap {
     //   hotswapServer,
     //   "hotswap server not found in stellar toml of domain " + domain,
     // );
-
-    return Hotswap(
-      "https://dev.api.mykobo.co/boomerang",
+    return Hotswap._(
+      _getServerAddress(domain),
       httpClient: httpClient,
       sdk: sdk,
     );
+  }
+
+  static String _getServerAddress(String domain) {
+    if (domain == 'mykobo.co') {
+      return "https://api.mykobo.co/boomerang";
+    } else if (domain == 'dev.anchor.mykobo.co') {
+      return "https://dev.api.mykobo.co/boomerang";
+    }
+    return domain;
   }
 
   Future<List<HotswapRoute>> info() async {
