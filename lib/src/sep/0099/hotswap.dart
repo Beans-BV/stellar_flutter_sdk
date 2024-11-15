@@ -55,7 +55,7 @@ class Hotswap {
     return result;
   }
 
-  Future<Transaction> getAnchorSignedTransaction({
+  Future<Transaction> buildTransaction({
     required String accountId,
     required HotswapRoute hotswapRoute,
     String toAssetTrustLineLimit = ChangeTrustOperationBuilder.MAX_LIMIT,
@@ -68,7 +68,8 @@ class Hotswap {
       (e) =>
           e.assetCode == fromAsset.code && e.assetIssuer == fromAsset.issuerId,
     );
-    var isNonZeroBalance = fromAssetBalanceObject.balance.toDouble() > 0;
+    final isEmptyBalance = fromAssetBalanceObject.balance.toDouble() == 0;
+    final isNonEmptyBalance = !isEmptyBalance;
 
     final toAsset = hotswapRoute.weSendAsset.toAsset();
     final sponsored = sponsoringAccountId != null;
@@ -90,7 +91,7 @@ class Hotswap {
     txBuilder.addOperation(trustDestinationAssetOperation);
 
     // Only create the payment operations if the balance is non-zero
-    if (isNonZeroBalance) {
+    if (isNonEmptyBalance) {
       final hotswapHandlerAccountId = hotswapRoute.hotswapAddress;
       // Send from asset to the hotswap server
       final depositSourceAssetOperation = PaymentOperationBuilder(
@@ -124,45 +125,47 @@ class Hotswap {
 
     final transaction = txBuilder.build();
 
-    // Only send the transaction to the hotswap server if the balance is non-zero
-    if (isNonZeroBalance) {
-      var transactionXdr = transaction.toEnvelopeXdrBase64();
-      var hotswapUrl = Util.appendEndpointToUrl(
-        _serverAddress,
-        'hotswap',
-      ).replace(
-        queryParameters: {
-          'transaction_xdr': transactionXdr,
-        },
-      );
-
-      final response = await _httpClient.post(hotswapUrl);
-
-      if (response.statusCode != 200) {
-        throw Exception(
-          'Failed to get anchor signed transaction: ${response.statusCode}',
-        );
-      }
-
-      final signedTransactionResponseData =
-          jsonDecode(response.body) as Map<String, dynamic>;
-      transactionXdr = signedTransactionResponseData['signed_tx_xdr'] as String;
-
-      final signedTransaction = Transaction.fromV1EnvelopeXdr(
-        XdrTransactionEnvelope.fromEnvelopeXdrString(
-          transactionXdr,
-        ).v1!,
-      );
-
-      if (!_checkIntegrity(transaction, signedTransaction)) {
-        throw Exception(
-          'The anchor signed transaction is corrupted: ${response.statusCode}',
-        );
-      }
-      return signedTransaction;
+    // No payments needs present so we don't need the hotswap server to sign
+    // the transaction.
+    if (isEmptyBalance) {
+      return transaction;
     }
 
-    return transaction;
+    // Send the transaction to the hotswap server if the balance is non-zero
+    var transactionXdr = transaction.toEnvelopeXdrBase64();
+    var hotswapUrl = Util.appendEndpointToUrl(
+      _serverAddress,
+      'hotswap',
+    ).replace(
+      queryParameters: {
+        'transaction_xdr': transactionXdr,
+      },
+    );
+
+    final response = await _httpClient.post(hotswapUrl);
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Failed to get anchor signed transaction: ${response.statusCode}',
+      );
+    }
+
+    final signedTransactionResponseData =
+        jsonDecode(response.body) as Map<String, dynamic>;
+    transactionXdr = signedTransactionResponseData['signed_tx_xdr'] as String;
+
+    final signedTransaction = Transaction.fromV1EnvelopeXdr(
+      XdrTransactionEnvelope.fromEnvelopeXdrString(
+        transactionXdr,
+      ).v1!,
+    );
+
+    if (!_checkIntegrity(transaction, signedTransaction)) {
+      throw Exception(
+        'The anchor signed transaction is corrupted: ${response.statusCode}',
+      );
+    }
+    return signedTransaction;
   }
 
   void dispose() {
