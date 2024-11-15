@@ -125,8 +125,8 @@ class Hotswap {
 
     final transaction = txBuilder.build();
 
-    // No payments needs present so we don't need the hotswap server to sign
-    // the transaction
+    // No payments present so we don't need the hotswap server to sign the
+    // transaction
     if (isEmptyBalance) {
       return transaction;
     }
