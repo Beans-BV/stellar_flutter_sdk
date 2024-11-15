@@ -90,7 +90,7 @@ class Hotswap {
     ).build();
     txBuilder.addOperation(trustDestinationAssetOperation);
 
-    // Only create the payment operations if the balance is non-zero
+    // Only create the payment operations if the balance is not empty
     if (isNonEmptyBalance) {
       final hotswapHandlerAccountId = hotswapRoute.hotswapAddress;
       // Send from asset to the hotswap server
@@ -126,12 +126,12 @@ class Hotswap {
     final transaction = txBuilder.build();
 
     // No payments needs present so we don't need the hotswap server to sign
-    // the transaction.
+    // the transaction
     if (isEmptyBalance) {
       return transaction;
     }
 
-    // Send the transaction to the hotswap server if the balance is non-zero
+    // Send the transaction to the hotswap server if the balance is not empty
     var transactionXdr = transaction.toEnvelopeXdrBase64();
     var hotswapUrl = Util.appendEndpointToUrl(
       _serverAddress,
