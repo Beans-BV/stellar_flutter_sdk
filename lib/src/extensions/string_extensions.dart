@@ -11,4 +11,8 @@ extension StringX on String {
       return AssetTypeCreditAlphaNum12(code, issuer);
     }
   }
+
+  double toDouble() {
+    return double.parse(this);
+  }
 }
